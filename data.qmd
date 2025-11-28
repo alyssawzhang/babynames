@@ -1,5 +1,55 @@
 # Data
 
 ## Description
+I draw on two sources of data for this project, both accessed by downloading zip files from <https://data.gov> (the official website for the US government's open data). The specific links are:
+
+(1) <https://catalog.data.gov/dataset/baby-names-from-social-security-card-applications-national-data>
+
+(2) <https://catalog.data.gov/dataset/baby-names-from-social-security-card-applications-state-and-district-of-columbia-data>
+
+Data source (1) is titled on its website as "Baby Names from Social Security Card Applications - National Data." This data was collected from a 100% sample of Social Security card applications from 1880 on by the Social Security Administration. The data seems to updated yearly, with the update being July 4, 2025. Data is formatted as 145 comma-delimited text files, each representing a year of birth after 1879 and titled "yobYYYY.TXT". Each record in the individual annual files has the format "name,sex,number," where name is 2 to 15 characters, sex is M (male) or F (female) and "number" is the number of occurrences of the name. Each file is sorted first on sex and then on number of occurrences in descending order. To safeguard privacy, names with below 5 occurrences were excluded from the data.
+
+Data source (2) is titled on its website as "Baby Names from Social Security Card Applications - State and District of Columbia Data." This data was collected from a 100% sample of Social Security card applications starting from 1910 by the Social Security Administration. The data seems to updated yearly, with the update being July 4, 2025. Data is Formatted as 51 comma-delimited text files representing the 50 US states and the District of Columbia, each titled with corresponding state postal abbreviation. Each record in a file has the format: 2-digit state code, sex (M = male or F = female), 4-digit year of birth (starting with 1910), the 2 to 15 character name, and the number of occurrences of the name. Each file is sorted first on sex, then year of birth, and then on number of occurrences in descending order. To safeguard privacy, names with below 5 occurrences were excluded from the data. 
+
+For convenience, I reconfigured the data sources by formatting their files into 2 dataframes: "names" and "namesbystate". "names" was created by joining the data source (1) text files for years 1910 to 2024, which became 2,060,539 observations of 4 variables (incl. year). "namesbystate" was created by joining all 51 of the data source (2) text files, which became 6,600,640 observations of 5 variables.
+
+```{r}
+library(tidyverse)
+
+# List of years
+years <- 1910:2024
+
+# Read and combine all files into one dataframe
+names <- lapply(years, function(y) {
+  file_path <- sprintf("names/yob%d.txt", y)
+  df <- read.csv(file_path, header = FALSE, stringsAsFactors = FALSE)
+  df$year <- y
+  df
+}) |>
+  bind_rows()
+
+# Add column names
+colnames(names) <- c("name", "sex", "count", "year")
+
+# Check first few rows
+head(names)
+```
+
+```{r}
+# List all state files (in the folder namesbystate/)
+state_files <- list.files("namesbystate", pattern = "*.TXT", full.names = TRUE)
+
+# Read and combine
+namesbystate <- lapply(state_files, function(f) {
+  read.csv(f, header = FALSE, stringsAsFactors = FALSE)
+}) |>
+  bind_rows()
+
+# Add column names
+colnames(namesbystate) <- c("state", "sex", "year", "name", "count")
+
+# Check first few rows
+head(namesbystate)
+```
 
 ## Missing value analysis
