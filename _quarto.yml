@@ -6,11 +6,10 @@ execute:
   echo: true
 
 book:
-  title: "YOUR PROJECT TITLE"
+  title: "US Baby Names"
   author:
-    - AUTHOR1 (UNI1)
-    - AUTHOR2 (UNI2)
-  repo-url: https://github.com/YOUR_GITHUB_ACCOUNT/REPO_NAME
+    - Alyssa W. Zhang (awz2109)
+  repo-url: https://github.com/alyssawzhang/babynames
   date: today
   page-footer:
     right: |

@@ -53,3 +53,10 @@ head(namesbystate)
 ```
 
 ## Missing value analysis
+```{r}
+library(redav)
+plot_missing(names, percent = FALSE)
+plot_missing(namesbystate, percent = FALSE)
+```
+There are no missing values.
+

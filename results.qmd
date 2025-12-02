@@ -1,1 +1,214 @@
 # Results
+```{r}
+library(tidyverse)
+
+# List of years
+years <- 1910:2024
+
+# Read and combine all files into one dataframe
+names <- lapply(years, function(y) {
+  file_path <- sprintf("names/yob%d.txt", y)
+  df <- read.csv(file_path, header = FALSE, stringsAsFactors = FALSE)
+  df$year <- y
+  df
+}) |>
+  bind_rows()
+
+# Add column names
+colnames(names) <- c("name", "sex", "count", "year")
+
+# Check first few rows
+head(names)
+```
+
+
+```{r}
+# List all state files (in the folder namesbystate/)
+state_files <- list.files("namesbystate", pattern = "*.TXT", full.names = TRUE)
+
+# Read and combine
+namesbystate <- lapply(state_files, function(f) {
+  read.csv(f, header = FALSE, stringsAsFactors = FALSE)
+}) |>
+  bind_rows()
+
+# Add column names
+colnames(namesbystate) <- c("state", "sex", "year", "name", "count")
+
+# Check first few rows
+head(namesbystate)
+```
+
+
+```{r}
+# Gender neutral names over time
+# Inspired by: https://flowingdata.com/2022/04/08/more-gender-neutral-names/
+
+library(ggplot2)
+library(tidyverse)
+
+names_wide <- names |>
+  pivot_wider(
+    id_cols = c(name, year), 
+    names_from = sex, 
+    values_from = count, 
+    values_fill = 0
+    )
+
+neutral_names <- names_wide |>
+  group_by(name, year) |>
+  filter(M > 0 & F > 0) |>
+  ungroup()
+
+neutral_names <- neutral_names |>
+  mutate(
+    ratio = M / F,
+    log_ratio = log10(ratio)
+  )
+
+ggplot(neutral_names, aes(x=year, y=log_ratio)) + 
+  geom_hex(bins=50) +
+  geom_hline(yintercept = 0, color = "black", linewidth = 0.3, alpha = 0.7) +
+  geom_hline(yintercept = log10(c(0.01, 0.1, 10, 100)), linetype = "dotted", alpha = 0.5) +
+  scale_fill_viridis_c(option = "magma", direction = -1) +
+  scale_y_continuous(
+    breaks = log10(c(0.01, 0.1, 1, 10, 100)),
+    labels = c("100× more girls", "10× more girls", "same", 
+               "10× more boys", "100× more boys"),
+  ) +
+  scale_x_continuous(
+    breaks = seq(1910, 2025, by=10),
+    guide = guide_axis(angle = 30)
+  ) +
+  labs(
+    title = "Distribution of Gender Ratios Over Time",
+    subtitle = "Each hex shows how many names fall into that gender ratio in that year",
+    x = "Year",
+    y = "Boys / Girls (log10 scale)"
+    ) +
+  theme_minimal()
+
+```
+
+```{r}
+# Notable gender switched names
+# Inspired by: https://flowingdata.com/2019/08/28/gender-switched-names/
+neutral_names_popular <- neutral_names |>
+  group_by(name) |>
+  filter(mean(M+F) > 500)
+
+name_switches <- neutral_names_popular |>
+  group_by(name) |>
+  summarize(
+    min_lr = min(log_ratio, na.rm = TRUE),
+    max_lr = max(log_ratio, na.rm = TRUE),
+    switch_size = max_lr - min_lr,
+    balance = 1 - abs(abs(max_lr) - abs(min_lr)) / (abs(max_lr) + abs(min_lr)),
+    combined_score = switch_size * balance
+  ) |>
+  arrange(desc(combined_score))
+
+top_switchers <- name_switches |>
+  slice_max(combined_score, n=16) |>
+  pull(name)
+
+switch_plot_df <- neutral_names |>
+  filter(name %in% top_switchers)
+
+switch_plot_df$name <- factor(
+  switch_plot_df$name,
+  levels = top_switchers
+)
+
+ggplot(switch_plot_df, aes(year, log_ratio)) +
+  geom_line(color = "black") +
+  geom_area(aes(fill = log_ratio > 0), alpha = 0.3, show.legend = FALSE) +
+  facet_wrap(~ name) +
+  geom_hline(yintercept = 0, color = "black") +
+  scale_y_continuous(
+    breaks = c(-2, -1, 0, 1, 2),
+    labels = c("100× girls", "10× girls", "same", "10× boys", "100× boys")
+  ) +
+  labs(
+    title = "Top Gender-Switched Names",
+    subtitle = "Popular names with the strongest and most balanced shifts from male to female or vice versa",
+    x = "Year",
+    y = "Boys / Girls (log10 scale)"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+# Notable gender neutral names
+# Inspired by: https://flowingdata.com/2013/09/25/the-most-unisex-names-in-us-history/
+
+library(tidyverse)
+
+# Compute p_boy, unisexness, etc.
+neutral_pct <- neutral_names_popular |>
+  mutate(
+    total = M + F,
+    p_boy = M / total,
+    p_girl = F / total,
+    unisex = 1 - 2 * abs(p_boy - 0.5),
+    weighted_unisex = unisex * log1p(total)
+  )
+
+# ---- Keep only names with long historical span ----
+min_year <- min(neutral_pct$year)
+max_year <- max(neutral_pct$year)
+total_years <- max_year - min_year + 1
+
+names_long_span <- neutral_pct |>
+  group_by(name) |>
+  summarize(n_years = n_distinct(year)) |>
+  filter(n_years >= 0.7 * total_years) |>   # 70% criterion
+  pull(name)
+
+neutral_pct <- neutral_pct |>
+  filter(name %in% names_long_span)
+
+# ---- Compute weighted average unisexness ----
+unisex_scores <- neutral_pct |>
+  group_by(name) |>
+  summarize(score = mean(weighted_unisex)) |>
+  arrange(desc(score))
+
+top_unisex_names <- unisex_scores |>
+  slice_max(score, n = 16) |>
+  pull(name)
+
+# ---- Reshape for stacked chart ----
+unisex_plot_df <- neutral_pct |>
+  filter(name %in% top_unisex_names) |>
+  mutate(name = factor(name, levels = top_unisex_names)) |>
+  pivot_longer(c(p_boy, p_girl),
+               names_to = "gender",
+               values_to = "prop") |>
+  mutate(gender = recode(gender, "p_boy" = "Boys", "p_girl" = "Girls"))
+
+unisex_plot_df$name <- factor(
+  unisex_plot_df$name,
+  levels = top_unisex_names
+)
+
+# ---- Plot ----
+ggplot(unisex_plot_df, aes(year, prop, fill = gender)) +
+  geom_area(alpha = 0.8) +
+  facet_wrap(~ name) +
+  scale_fill_manual(values = c("Boys" = "#6baed6", "Girls" = "#fbb4ae")) +
+  scale_y_continuous(
+    labels = scales::percent_format(accuracy = 1),
+    breaks = seq(0, 1, 0.25)
+  ) +
+  labs(
+    title = "Top Gender Neutral Names through US History",
+    subtitle = "Based on consistency and popularity from 1910–2024 (stacked to 100%)",
+    x = "Year",
+    y = "Percent",
+    fill = "Gender"
+  ) +
+  theme_minimal()
+
+```
+
