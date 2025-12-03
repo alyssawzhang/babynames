@@ -211,4 +211,61 @@ ggplot(unisex_plot_df, aes(year, prop, fill = gender)) +
   theme_minimal()
 
 ```
+```{r}
+# Top 10 female names from 2024, shown from 1910-2024
+# Inspire by: https://lexigenealogy.com/2013/06/popularity-of-girls-names-in-the-us/
+top10_F_2024 <- names |>
+  filter(sex=="F", year==2024) |>
+  slice_max(count, n=10) |>
+  pull(name)
+
+top10_F_df <- names |>
+  filter(sex=="F") |>
+  group_by(year) |>
+  mutate(rank = row_number()) |>
+  ungroup() |>
+  filter(name %in% top10_F_2024) |>
+  mutate(
+    rank_plot = ifelse(rank <= 1000, rank, NA)
+  )
+
+ggplot(top10_F_df, aes(x=year, y=rank_plot, color = name)) +
+  geom_line(size = 1.2, position = position_jitter(height=10)) +
+  scale_x_continuous(breaks = seq(1910, 2024, 10)) +
+  scale_y_reverse(
+    breaks = c(1000, 750, 500, 250, 1)
+  ) +
+  labs(title = "Top 10 Female Names from 2024, shown from 1910-2024") +
+  scale_color_brewer(palette = "Set3")+
+  theme_dark()
+
+```
+
+```{r}
+# Top 10 female names from 2024, shown from 1910-2024
+top10_M_2024 <- names |>
+  filter(sex=="M", year==2024)|>
+  slice_max(count, n=10) |>
+  pull(name)
+
+top10_M_df <- names |>
+  filter(sex=="M") |>
+  group_by(year) |>
+  mutate(rank = row_number()) |>
+  ungroup() |>
+  filter(name %in% top10_M_2024) |>
+  mutate(
+    rank_plot = ifelse(rank <= 1000, rank, NA)
+  )
+
+ggplot(top10_M_df, aes(x=year, y=rank_plot, color = name)) +
+  geom_line(size = 1.2, position = position_jitter(height=10)) +
+  scale_x_continuous(breaks = seq(1910, 2024, 10)) +
+  scale_y_reverse(
+    breaks = c(1000, 750, 500, 250, 1)
+  ) +
+  labs(title = "Top 10 Male Names from 2024, shown from 1910-2024") +
+  scale_color_brewer(palette = "Set3")+
+  theme_dark()
+```
 
